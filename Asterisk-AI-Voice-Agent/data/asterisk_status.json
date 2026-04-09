@@ -1,0 +1,11 @@
+{
+    "timestamp": "2026-04-05T09:33:41Z",
+    "asterisk_found": false,
+    "asterisk_version": "",
+    "config_dir": "",
+    "freepbx": {
+        "detected": false,
+        "version": ""
+    },
+    "checks": {}
+}

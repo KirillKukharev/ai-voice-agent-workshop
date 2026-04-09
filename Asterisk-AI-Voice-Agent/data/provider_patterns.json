@@ -1,0 +1,9 @@
+{
+  "local@8000Hz": {
+    "type": "bursty",
+    "mean_interval_ms": 5472.756928867764,
+    "max_gap_ms": 23826.104164123535,
+    "variance": 59509382.27531665,
+    "optimal_buffer_ms": 200
+  }
+}
