@@ -6,9 +6,9 @@
 
 | Локальный каталог | Апстрим | Назначение |
 |-------------------|---------|------------|
-| [`sip-service-poc/`](./sip-service-poc/README.md) | [**wazo-platform/wazo-docker**](https://github.com/wazo-platform/wazo-docker) | Docker-окружение платформы **Wazo**: Asterisk, сервисы UC, в этой ветке — дополнения вроде AI-бота и speech-to-text. |
-| [`AVR/`](./AVR/README.md) | [**agentvoiceresponse/avr-infra**](https://github.com/agentvoiceresponse/avr-infra) | **Agent Voice Response (AVR)**: Asterisk, **AVR Core**, подключаемые ASR / LLM / TTS (или speech-to-speech) через **Audiosocket**. |
-| [`Asterisk-AI-Voice-Agent/`](./Asterisk-AI-Voice-Agent/README.md) | [**hkjarral/AVA-AI-Voice-Agent-for-Asterisk**](https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk) | **Asterisk AI Voice Agent (AVA)**: **ai_engine**, Admin UI, ARI/FreePBX, модульные pipeline’ы STT/LLM/TTS. |
+| sip-service-poc/ | [**wazo-platform/wazo-docker**](https://github.com/wazo-platform/wazo-docker) | Docker-окружение платформы **Wazo**: Asterisk, сервисы UC, в этой ветке — дополнения вроде AI-бота и speech-to-text. |
+| AVR/ | [**agentvoiceresponse/avr-infra**](https://github.com/agentvoiceresponse/avr-infra) | **Agent Voice Response (AVR)**: Asterisk, **AVR Core**, подключаемые ASR / LLM / TTS (или speech-to-speech) через **Audiosocket**. |
+| Asterisk-AI-Voice-Agent/ | [**hkjarral/AVA-AI-Voice-Agent-for-Asterisk**](https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk) | **Asterisk AI Voice Agent (AVA)**: **ai_engine**, Admin UI, ARI/FreePBX, модульные pipeline’ы STT/LLM/TTS. |
 
 ---
 
