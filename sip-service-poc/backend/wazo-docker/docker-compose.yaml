@@ -1,0 +1,435 @@
+services:
+  # Wazo Platform Services
+  nginx:
+    image: nginx
+    ports:
+      - '80:80'      # HTTP для редиректа на HTTPS
+      - '443:443'    # HTTPS для внешнего доступа
+    networks:
+      - default
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    volumes:
+      - ${LOCAL_GIT_REPOS}/etc/nginx-auth-shared.conf:/etc/nginx/wazo-auth-shared.conf:ro
+      - ${LOCAL_GIT_REPOS}/etc/nginx-calld-shared.conf:/etc/nginx/wazo-calld-shared.conf:ro
+      - ${LOCAL_GIT_REPOS}/etc/nginx-confd-shared.conf:/etc/nginx/wazo-confd-shared.conf:ro
+      - ${LOCAL_GIT_REPOS}/etc/nginx-no-auth-shared.conf:/etc/nginx/wazo-no-auth-shared.conf:ro
+      - ${LOCAL_GIT_REPOS}/etc/nginx.conf:/etc/nginx/conf.d/config.conf:ro
+      - ${LOCAL_GIT_REPOS}/certs:/certs:ro
+    depends_on:
+      - agentd
+      - amid
+      - asterisk
+      - auth
+      - call-logd
+      - calld
+      - chatd
+      - confd
+      - dird
+      - phoned
+      - provd
+      - ui
+      - webhookd
+      - websocketd
+
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: wazo
+      POSTGRES_USER: asterisk
+      POSTGRES_PASSWORD: changeme
+    env_file:
+      - ${LOCAL_GIT_REPOS}/variables.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ${LOCAL_GIT_REPOS}/init-db:/docker-entrypoint-initdb.d
+    expose:
+      - "5432"
+
+  rabbitmq:
+    image: rabbitmq
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - "5672"
+    volumes:
+      - tmp-rabbitmq:/var/lib/rabbitmq:rw
+
+  auth:
+    image: wazoplatform/wazo-auth
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9497
+    volumes:
+      - ${LOCAL_GIT_REPOS}/etc/wazo-auth.yml:/etc/wazo-auth/conf.d/config.yml:ro
+      - type: bind
+        source: ${LOCAL_GIT_REPOS}/wazo-auth-keys/etc/wazo-auth/conf.d/50-wazo-default.yml
+        target: /etc/wazo-auth/conf.d/50-wazo-default.yml
+        read_only: true
+
+  confd:
+    image: wazoplatform/wazo-confd:manage-db
+    build:
+      context: .
+      dockerfile: Dockerfile-confd
+    env_file:
+      - ./variables.env
+    expose:
+      - 9486
+    volumes:
+      - ./etc/wazo-confd.yml:/etc/wazo-confd/conf.d/config.yml:ro
+      - ./etc/xivo-dao.yml:/etc/xivo-dao/conf.d/config.yml:ro
+      - ./bin/init-confd:/bin/wazo-confd/init:ro
+      - ./bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+      - asterisk-doc:/var/lib/wazo-confd/asterisk-doc:ro
+    entrypoint: ["/bin/wazo-confd/init"]
+    command: ["wazo-confd"]
+
+
+  provd:
+    image: wazoplatform/wazo-provd:confgend
+    build:
+      context: ${LOCAL_GIT_REPOS}
+      dockerfile: Dockerfile-provd
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 8666
+    volumes:
+      - ${LOCAL_GIT_REPOS}/etc/wazo-confgend-client.conf:/etc/wazo-confgend-client/config.conf:ro
+      - ${LOCAL_GIT_REPOS}/etc/wazo-provd.yml:/etc/wazo-provd/conf.d/config.yml:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-provd:/bin/wazo-provd/init:rw
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+      - ${LOCAL_GIT_REPOS}/provd-data:/var/lib/wazo-provd:rw
+    entrypoint: ["/bin/wazo-provd/init"]
+    command: ["twistd", "--nodaemon", "--no_save", "--pidfile=", "wazo-provd", "--stderr", "--verbose"]
+
+  sysconfd:
+    image: wazoplatform/wazo-sysconfd-mock
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 8668
+
+  webhookd:
+    image: wazoplatform/wazo-webhookd:netcat
+    build:
+      context: ${LOCAL_GIT_REPOS}
+      dockerfile: Dockerfile-webhookd
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9300
+    volumes:
+      - ${LOCAL_GIT_REPOS}/etc/wazo-webhookd.yml:/etc/wazo-webhookd/conf.d/config.yml:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-webhookd:/bin/wazo-webhookd/init:rw
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-webhookd/init"]
+    command: ["wazo-webhookd"]
+
+  # Asterisk service - использует конфигурацию из wazo-docker/ari_service/asterisk
+  asterisk:
+    build:
+      context: ${LOCAL_GIT_REPOS}/bin/ari_service
+      dockerfile: Dockerfile.asterisk
+    container_name: asterisk
+    hostname: asterisk.wazo-docker
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - "5038"  # AMI
+      - "5039"  # HTTP (ARI/AJAM)
+      - "8088"  # ARI HTTP
+    ports:
+      - '5060:5060/udp'  # SIP
+      - '5060:5060/tcp'  # SIP
+      - '5038:5038'  # AMI
+      - '5039:5039'  # HTTP (ARI/AJAM) - для nginx
+      - '8088:8088'  # ARI HTTP
+      - '10000-10050:10000-10050/udp'  # RTP
+      - '19980-20000:19980-20000/udp'  # RTP
+    volumes:
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ${LOCAL_GIT_REPOS}/etc/wazo-confgend-client.conf:/etc/wazo-confgend-client/config.conf:ro
+      - ${LOCAL_GIT_REPOS}/bin/ari_service/asterisk:/etc/asterisk:rw
+      - ${LOCAL_GIT_REPOS}/bin/init-asterisk-ari:/bin/asterisk/init:rw
+      - asterisk-doc:/usr/share/asterisk/documentation:rw
+      - asterisk-voicemail:/var/spool/asterisk/voicemail:rw
+      # xivo-config has too much dependencies to be installed in the container
+      - type: bind
+        source: ${LOCAL_GIT_REPOS}/xivo-config/etc/xivo/asterisk
+        target: /etc/xivo/asterisk
+        read_only: true
+      - type: bind
+        source: ${LOCAL_GIT_REPOS}/xivo-config/dialplan/asterisk
+        target: /usr/share/xivo-config/dialplan/asterisk
+        read_only: true
+    entrypoint: ["/bin/bash", "/bin/asterisk/init"]
+    command: ["asterisk", "-fTvvv"]
+    networks:
+      - default
+      - voice-net
+
+  confgend:
+    image: wazoplatform/wazo-confgend
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 8669
+    volumes:
+      - ${LOCAL_GIT_REPOS}/etc/wazo-confgend.yml:/etc/wazo-confgend/conf.d/config.yml:ro
+
+  agid:
+    image: wazoplatform/wazo-agid
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 4573
+    volumes:
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-agid:/bin/wazo-agid/init:rw
+      - ${LOCAL_GIT_REPOS}/etc/wazo-agid.yml:/etc/wazo-agid/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+      - type: bind
+        source: ${LOCAL_GIT_REPOS}/xivo-config/etc/xivo
+        target: /etc/xivo
+        read_only: true
+    entrypoint: ["/bin/wazo-agid/init"]
+    command: ["wazo-agid"]
+
+  dird:
+    image: wazoplatform/wazo-dird:netcat
+    build:
+      context: ${LOCAL_GIT_REPOS}
+      dockerfile: Dockerfile-dird
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9489
+    volumes:
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-dird:/bin/wazo-dird/init:rw
+      - ${LOCAL_GIT_REPOS}/etc/wazo-dird.yml:/etc/wazo-dird/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-dird/init"]
+    command: ["wazo-dird"]
+
+  amid:
+    image: wazoplatform/wazo-amid
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9491
+    volumes:
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-amid:/bin/wazo-amid/init:rw
+      - ${LOCAL_GIT_REPOS}/etc/wazo-amid.yml:/etc/wazo-amid/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-amid/init"]
+    command: ["wazo-amid"]
+
+  call-logd:
+    image: wazoplatform/wazo-call-logd
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9298
+    volumes:
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-call-logd:/bin/wazo-call-logd/init:rw
+      - ${LOCAL_GIT_REPOS}/etc/wazo-call-logd.yml:/etc/wazo-call-logd/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-call-logd/init"]
+    command: ["wazo-call-logd", "--db-upgrade-on-startup"]
+
+  chatd:
+    image: wazoplatform/wazo-chatd:netcat
+    build:
+      context: ${LOCAL_GIT_REPOS}
+      dockerfile: Dockerfile-chatd
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9304
+    volumes:
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-chatd:/bin/wazo-chatd/init:rw
+      - ${LOCAL_GIT_REPOS}/etc/wazo-chatd.yml:/etc/wazo-chatd/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-chatd/init"]
+    command: ["wazo-chatd"]
+
+  phoned:
+    image: wazoplatform/wazo-phoned
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9304
+    volumes:
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-phoned:/bin/wazo-phoned/init:rw
+      - ${LOCAL_GIT_REPOS}/etc/wazo-phoned.yml:/etc/wazo-phoned/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-phoned/init"]
+    command: ["wazo-phoned"]
+
+  websocketd:
+    image: wazoplatform/wazo-websocketd:netcat
+    build:
+      context: ${LOCAL_GIT_REPOS}
+      dockerfile: Dockerfile-websocketd
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9502
+    volumes:
+      - ${LOCAL_GIT_REPOS}/etc/wazo-websocketd.yml:/etc/wazo-websocketd/conf.d/config.yml:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-websocketd:/bin/wazo-websocketd/init:rw
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-websocketd/init"]
+    command: ["wazo-websocketd"]
+
+  calld:
+    image: wazoplatform/wazo-calld
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9491
+    volumes:
+      - asterisk-voicemail:/var/spool/asterisk/voicemail:rw
+      - ${LOCAL_GIT_REPOS}/etc/wazo-calld.yml:/etc/wazo-calld/conf.d/config.yml:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-calld:/bin/wazo-calld/init:rw
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-calld/init"]
+    command: ["wazo-calld"]
+
+  agentd:
+    image: wazoplatform/wazo-agentd
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9493
+    volumes:
+      - ${LOCAL_GIT_REPOS}/etc/wazo-agentd.yml:/etc/wazo-agentd/conf.d/config.yml:ro
+      - ${LOCAL_GIT_REPOS}/bin/init-agentd:/bin/wazo-agentd/init:rw
+      - ${LOCAL_GIT_REPOS}/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-agentd/init"]
+    command: ["wazo-agentd"]
+
+  ui:
+    image: wazoplatform/wazo-ui
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    expose:
+      - 9296
+    volumes:
+      - ${LOCAL_GIT_REPOS}/etc/wazo-ui.yml:/etc/wazo-ui/conf.d/config.yml:ro
+
+  bootstrap:
+    image: wazoplatform/uc-bootstrap
+    build:
+      context: ${LOCAL_GIT_REPOS}
+      dockerfile: Dockerfile-bootstrap
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/variables.env
+    volumes:
+      - ${LOCAL_GIT_REPOS}/bin/init-bootstrap:/bin/platform-bootstrap/init:ro
+      - ${LOCAL_GIT_REPOS}/etc/wazo-auth-cli.yml:/etc/wazo-auth-cli/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:rw
+      - type: bind
+        source: ${LOCAL_GIT_REPOS}/wazo-auth-keys/etc/wazo-auth-keys/config.yml
+        target: /etc/wazo-auth-keys/config.yml
+        read_only: true
+    entrypoint: ["/bin/bash", "/bin/platform-bootstrap/init"]
+
+  # ARI Handler service (init_ai_bot_config with Airtable)
+  ari-handler:
+    build:
+      context: ${LOCAL_GIT_REPOS}
+      dockerfile: bin/init_ai_bot_config/Dockerfile.ari-handler
+    container_name: ari-handler
+    networks:
+      - default
+      - voice-net
+    depends_on:
+      - asterisk
+    ports:
+      - "8765:8765"
+      - "8000:8000"  # WebSocket server for frontend (прямой доступ)
+    env_file:
+      -  ${LOCAL_GIT_REPOS}/bin/init_ai_bot_config/.env.template
+    environment:
+      - AST_HOST=asterisk
+      - AST_PORT=8088
+      - AST_USER=ariuser
+      - AST_PASS=changeme
+      - AST_APP=voicebot
+      - ARI_HOST=asterisk
+      - ARI_PORT=5039
+      - ARI_USER=ariuser
+      - ARI_PASSWORD=changeme
+      - ARI_APP_NAME=voicebot
+      - USE_NNPACK=0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - YANDEX_SERVICE_ACCOUNT_ID=${YANDEX_SERVICE_ACCOUNT_ID}
+      - NOCODE_API_KEY=${NOCODE_API_KEY}
+      - NOCODE_BASE_URL=${NOCODE_BASE_URL}
+      - YANDEX_SA_KEY_ID=${YANDEX_SA_KEY_ID}
+      - YANDEX_PRIVATE_KEY=${YANDEX_PRIVATE_KEY}
+      - YANDEX_FOLDER_ID=${YANDEX_FOLDER_ID}
+      - AIRTABLE_API_KEY=${AIRTABLE_API_KEY}
+      - AIRTABLE_BASE_ID=${AIRTABLE_BASE_ID}
+      - AIRTABLE_TICKETS_TABLE=${AIRTABLE_TICKETS_TABLE}
+      - AIRTABLE_BOOKINGS_TABLE=${AIRTABLE_BOOKINGS_TABLE}
+      - WEBSOCKET_PORT=8000
+
+    restart: always
+
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    container_name: hbf_hotels_frontend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    networks:
+      - default
+      - hbf_hotels_network
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
+  voice-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+          gateway: 172.22.0.1
+  hbf_hotels_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
+          gateway: 172.23.0.1
+
+volumes:
+  pgdata:
+  provd-data:
+  wazo-auth-keys:
+  asterisk-autoprov:
+  asterisk-doc:
+  asterisk-voicemail:
+  tmp-rabbitmq:

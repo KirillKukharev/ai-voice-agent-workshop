@@ -1,0 +1,54 @@
+debug: true
+rest_api:
+  listen: 0.0.0.0
+
+db_uri: postgresql://asterisk:changeme@postgres/wazo
+
+bus:
+  host: rabbitmq
+
+auth:
+  host: auth
+
+confd:
+  host: confd
+
+calld:
+  host: calld
+
+call_logd:
+  host: call-logd
+  port: 9298
+
+# AI Bot specific settings
+ai_bot:
+  ari:
+    host: asterisk
+    port: 5039
+    user: ariuser
+    password: changeme
+    app_name: voice-bot
+
+  speech_recognition:
+    engine: yandex
+    supported_codecs: [ulaw, alaw, g722]  # Поддерживаемые кодеки для STT
+    preferred_codec: ${PREFERRED_CODEC:-g722}  # Предпочитаемый кодек (g711 или g722)
+
+  speech_synthesis:
+    engine: yandex  # or google
+    output_codec: ${OUTPUT_CODEC:-g722}  # Кодек по умолчанию для TTS (g711 или g722)
+    supported_codecs: [ulaw, alaw, g722, pcm]  # Поддерживаемые кодеки для TTS
+
+  llm_service:
+    provider: openai  # or anthropic, etc.
+    model: gpt-4o-mini
+
+  wazo:
+    host: localhost
+    port: 8443
+    username: admin
+    password: changeme
+    verify_ssl: false
+
+service_discovery:
+  enabled: false

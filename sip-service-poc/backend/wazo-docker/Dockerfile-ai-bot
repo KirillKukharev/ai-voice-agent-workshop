@@ -1,0 +1,56 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-dev \
+    build-essential \
+    curl \
+    librabbitmq-dev \
+    git \
+    libavformat-dev \
+    libavcodec-dev \
+    libavutil-dev \
+    libswresample-dev \
+    libswscale-dev \
+    libmp3lame-dev \
+    libopus-dev \
+    libvorbis-dev \
+    libvpx-dev \
+    ffmpeg \
+    libssl-dev \
+    libffi-dev \
+    libpq-dev \
+    libatomic1 \
+    unzip \
+    libc++1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/local/wazo-ai-bot
+
+COPY backend/pyproject.toml ./
+# Pin matches backend/uv.lock. Git fetch via Debian's GnuTLS-backed libcurl often fails in Docker (TLS disconnect).
+RUN set -eux; \
+    ten_vad_sha=22a3bcd4509d0faaa8eef4881e8af5f39c178950; \
+    mkdir -p /opt/vendor; \
+    curl -fL --retry 5 --retry-delay 15 --retry-all-errors --http1.1 \
+      -o /tmp/ten-vad.tgz \
+      "https://github.com/TEN-framework/ten-vad/archive/${ten_vad_sha}.tar.gz"; \
+    tar -xzf /tmp/ten-vad.tgz -C /opt/vendor; \
+    rm /tmp/ten-vad.tgz; \
+    mv "/opt/vendor/ten-vad-${ten_vad_sha}" /opt/vendor/ten-vad; \
+    sed -i 's|ten-vad = { git = "https://github.com/TEN-framework/ten-vad.git" }|ten-vad = { path = "/opt/vendor/ten-vad" }|' pyproject.toml; \
+    curl -LsSf https://astral.sh/uv/install.sh | sh; \
+    export PATH="/root/.local/bin:$PATH"; \
+    uv sync --no-dev --extra ai-bot --no-install-project; \
+    apt-get purge -y curl 2>/dev/null || true
+
+ENV PATH="/root/.local/bin:/usr/local/wazo-ai-bot/.venv/bin:$PATH"
+
+COPY .env /usr/local/wazo-ai-bot/.env
+COPY backend/wazo-docker/bin/init_ai_bot_config /bin/init_ai_bot_config/init
+COPY backend/wazo-docker/bin/init_ai_bot_config/init /bin/init_ai_bot_config/init.sh
+COPY backend/wazo-docker/etc/wazo-ai-bot.yml /etc/wazo-ai-bot/conf.d/config.yml
+
+RUN chmod +x /bin/init_ai_bot_config/init.sh
+
+ENTRYPOINT ["/bin/init_ai_bot_config/init.sh"]
+CMD ["wazo-ai-bot"]

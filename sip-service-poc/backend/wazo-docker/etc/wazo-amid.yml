@@ -1,0 +1,19 @@
+debug: true
+rest_api:
+  listen: 0.0.0.0
+
+ajam:
+  host: asterisk
+  username: wazo_amid
+  password: changeme
+
+ami:
+  host: asterisk
+  username: wazo_amid
+  password: changeme
+
+bus:
+  host: rabbitmq
+
+auth:
+  host: auth

@@ -1,0 +1,54 @@
+---
+- hosts: all
+  tasks:
+    - name: clone wazo-auth-key
+      command: "git clone --depth=1 https://github.com/wazo-platform/wazo-auth-keys.git"
+      args:
+        chdir: "{{ zuul.project.src_dir }}"
+
+    - name: clone xivo-config
+      command: "git clone --depth=1 https://github.com/wazo-platform/xivo-config.git"
+      args:
+        chdir: "{{ zuul.project.src_dir }}"
+
+    - name: Print docker version
+      command: "docker --version"
+      args:
+        chdir: "{{ zuul.project.src_dir }}"
+      environment:
+        LOCAL_GIT_REPOS: "."
+
+    - name: Print docker compose version
+      command: "docker compose version"
+      args:
+        chdir: "{{ zuul.project.src_dir }}"
+      environment:
+        LOCAL_GIT_REPOS: "."
+
+    - name: Pull images
+      command: "docker compose pull --ignore-pull-failures"
+      args:
+        chdir: "{{ zuul.project.src_dir }}"
+      environment:
+        LOCAL_GIT_REPOS: "."
+
+    - name: Build images
+      command: "docker compose build --pull"
+      args:
+        chdir: "{{ zuul.project.src_dir }}"
+      environment:
+        LOCAL_GIT_REPOS: "."
+
+    - name: Launch docker compose to test docker images
+      command: "docker compose up --detach"
+      args:
+        chdir: "{{ zuul.project.src_dir }}"
+      environment:
+        LOCAL_GIT_REPOS: "."
+
+    - name: Verify everything is fine
+      command: "./verify.sh"
+      args:
+        chdir: "{{ zuul.project.src_dir }}"
+      environment:
+        LOCAL_GIT_REPOS: "."

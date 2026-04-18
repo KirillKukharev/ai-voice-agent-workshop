@@ -1,0 +1,123 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sip-service-backend"
+version = "0.1.0"
+description = "SIP service backend: API, AI bot, speech-to-text"
+requires-python = "==3.13.*"
+dependencies = []
+
+[project.optional-dependencies]
+main = [
+    "fastapi>=0.115.5,<0.116",
+    "uvicorn[standard]~=0.40.0",
+    "pyairtable>=2.3.1,<3",
+    "python-dotenv>=1.0.0,<2",
+    "aiohttp~=3.13.3",
+]
+
+ai-bot = [
+    "websockets>=14.1,<15",
+    "httpx>=0.27.2,<1.0.0",
+    "numpy>=2.3.1,<3",
+    "aiohttp~=3.13.3",
+    "aiohttp-cors>=0.7.0",
+    "aio-pika>=9.3.0",
+    "pyyaml>=6.0.1",
+    "psycopg2-binary>=2.9.7",
+    "asyncpg>=0.31.0,<0.32",
+    "requests>=2.32.5",
+    "asyncio-mqtt>=0.13.0",
+    "pydantic>=2.11.7,<3",
+    "pydantic-settings>=2.10.1",
+    "pydub>=0.25.1",
+    "gtts>=2.5.4",
+    "openai>=1.55.3,<2",
+    "pyjwt[crypto]>=2.10.1",
+    "grpcio>=1.73.1",
+    "grpcio-tools>=1.73.1",
+    "protobuf>=6.31.1,<7",
+    "python-dotenv>=1.0.1,<2",
+    "G722>=1.0.0",
+    "pyairtable>=2.3.1,<3",
+    "ten-vad",
+    "audioop-lts>=0.2.1; python_version=='3.13'",
+]
+
+speech-to-text = [
+    "aiohttp~=3.13.3",
+    "aiohttp-retry>=2.9.1",
+    "colorlog>=6.9.0",
+    "pydantic>=2.10.6,<3",
+    "pydantic-settings>=2.7.1",
+    "python-dotenv>=1.0.1,<2",
+    "python-multipart>=0.0.20",
+    "pytz>=2025.1",
+    "numpy>=2.0.0,<3",
+    "uvicorn~=0.40.0",
+    "G722>=1.2.1",
+    "audioop-lts>=0.2.1; python_version=='3.13'",
+]
+
+gigaam = [
+    "hydra-core>=1.3,<1.4",
+    "numpy>=2.0,<3",
+    "omegaconf>=2.3,<2.4",
+    "uvicorn~=0.40.0",
+    "onnx>=1.19,<1.20",
+    "onnxruntime>=1.23,<1.24",
+    "sentencepiece",
+    "torch>=2.5,<2.9",
+    "fastapi>=0.115.8,<0.128",
+    "fastapi-template<=6.0.0",
+    "torchaudio>=2.5,<2.9",
+    "tqdm~=4.67.2",
+]
+
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13",
+    "pre-commit >=2.8.2,<3.0.0",
+    "types-setuptools>=80.9.0.20250809",
+    "types-protobuf>=6.30.2.20250914",
+]
+
+[tool.uv.sources]
+ten-vad = { git = "https://github.com/TEN-framework/ten-vad.git" }
+
+[tool.uv]
+default-groups = []
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = [".git", ".venv", "venv", "__pycache__", "build", "dist", "*.egg-info"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # Pyflakes
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "I",      # isort
+    "C4",     # flake8-comprehensions
+    "T20",    # flake8-print
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+]
+ignore = ["ARG001", "S101", "B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend", "gigaam"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.13"
+warn_redundant_casts = true
+warn_unused_ignores = false
+pretty = true

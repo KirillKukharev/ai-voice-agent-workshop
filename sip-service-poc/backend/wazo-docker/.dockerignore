@@ -1,0 +1,7 @@
+# Ignore virtualenvs, git data, and local auth keys when building images
+.git
+__pycache__/
+*.pyc
+
+# Sensitive service keys generated locally - ignore entire directory
+wazo-auth-keys/

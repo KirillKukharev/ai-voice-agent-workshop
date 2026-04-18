@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gigaam"
+version = "0.1.0"
+description = "GigaAM: A package for audio modeling and ASR."
+requires-python = ">=3.10"
+authors = [{ name = "GigaChat Team" }]
+license = { text = "MIT" }
+dependencies = [
+    "hydra-core==1.3.*",
+    "numpy==2.*",
+    "omegaconf==2.3.*",
+    "onnx==1.19.*",
+    "onnxruntime==1.23.*",
+    "sentencepiece",
+    "torch>=2.5,<2.9",
+    "torchaudio>=2.5,<2.9",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+longform = [
+    "torch==2.8.*",
+    "torchaudio==2.8.*",
+    "pyannote.audio==4.0",
+    "torchcodec==0.7",
+    "numba>=0.62",
+]
+tests = [
+    "pytest",
+    "pytest-cov",
+    "scipy",
+    "soundfile",
+    "librosa",
+]
+
+[tool.setuptools.packages.find]
+include = ["gigaam*"]

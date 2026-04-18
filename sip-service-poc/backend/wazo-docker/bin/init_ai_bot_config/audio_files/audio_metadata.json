@@ -1,0 +1,91 @@
+{
+  "generated_at": 520432.875262174,
+  "codec": "g722",
+  "files": [
+    {
+      "text": "Я вас не поняла, пожалуйста повторите.",
+      "filename": "fallback_not_understood.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/fallback_not_understood.audio",
+      "description": "Реплика, когда не распознана речь пользователя",
+      "success": true
+    },
+    {
+      "text": "Остались ли у вас ещё вопросы?",
+      "filename": "re_prompt_questions.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/re_prompt_questions.audio",
+      "description": "Повторный вопрос после паузы в разговоре",
+      "success": true
+    },
+    {
+      "text": "Добрый день! Чем я могу вам помочь?",
+      "filename": "greeting_initial.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/greeting_initial.audio",
+      "description": "Приветственное сообщение при начале разговора",
+      "success": true
+    },
+    {
+      "text": "Желаете что-нибудь спросить или узнать?",
+      "filename": "question_initial.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/question_initial.audio",
+      "description": "Первый вопрос пользователю через 5 секунд после начала разговора",
+      "success": true
+    },
+    {
+      "text": "Уточняю информацию.",
+      "filename": "filler_thinking_1.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/filler_thinking_1.audio",
+      "description": "Филлер: показываем что обрабатываем запрос (1.2 сек)",
+      "success": true
+    },
+    {
+      "text": "Сейчас проверю.",
+      "filename": "filler_checking_1.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/filler_checking_1.audio",
+      "description": "Филлер: проверка информации (1.1 сек)",
+      "success": true
+    },
+    {
+      "text": "Подождите пожалуйста.",
+      "filename": "filler_wait_1.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/filler_wait_1.audio",
+      "description": "Филлер: вежливая просьба подождать (1.3 сек)",
+      "success": true
+    },
+    {
+      "text": "Один момент.",
+      "filename": "filler_moment_1.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/filler_moment_1.audio",
+      "description": "Филлер: короткое ожидание (0.9 сек)",
+      "success": true
+    },
+    {
+      "text": "Ищу ответ.",
+      "filename": "filler_searching_1.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/filler_searching_1.audio",
+      "description": "Филлер: поиск информации (1.0 сек)",
+      "success": true
+    },
+    {
+      "text": "Сейчас отвечу.",
+      "filename": "filler_answering_1.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/filler_answering_1.audio",
+      "description": "Филлер: скоро будет ответ (1.1 сек)",
+      "success": true
+    },
+    {
+      "text": "Проверяю данные.",
+      "filename": "filler_verifying_1.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/filler_verifying_1.audio",
+      "description": "Филлер: валидация информации (1.2 сек)",
+      "success": true
+    },
+    {
+      "text": "Подготавливаю ответ.",
+      "filename": "filler_preparing_1.audio",
+      "filepath": "/home/init/wazo-platform-demo/sip-service-poc/bin/init-ai-bot-config/audio_files/filler_preparing_1.audio",
+      "description": "Филлер: финальная подготовка (1.3 сек)",
+      "success": true
+    }
+  ],
+  "usage_note": "Use .audio files for RTP playback, .wav files for testing"
+}

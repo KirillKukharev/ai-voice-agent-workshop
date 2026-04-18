@@ -1,0 +1,1 @@
+RETRY_STATUSES: set[int] = {500, 502, 503, 504, 429, 408}

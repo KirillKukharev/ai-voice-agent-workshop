@@ -1,0 +1,10 @@
+FROM wazoplatform/wazo-auth-cli
+
+RUN true \
+    && pip install \
+      psycopg2-binary==2.9.5 \
+      requests \
+      https://github.com/wazo-platform/wazo-auth-keys/archive/master.zip \
+    && mkdir -p /etc/wazo-auth-keys/conf.d \
+    && mkdir -p /var/lib/wazo-auth-keys \
+    && apt-get update && apt-get install -y dnsutils iproute2 curl

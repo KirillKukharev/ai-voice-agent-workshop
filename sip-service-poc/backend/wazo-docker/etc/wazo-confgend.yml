@@ -1,0 +1,12 @@
+debug: true
+listen_address: 0.0.0.0
+
+db_uri: postgresql://asterisk:changeme@postgres/wazo
+
+enabled_asterisk_modules:
+  # Enable CDR modules
+  cdr_adaptive_odbc.so: true
+  func_cdr.so: true
+  # Remove error log from asterisk
+  res_prometheus.so: false
+  res_timing_dahdi: false

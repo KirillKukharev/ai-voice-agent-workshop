@@ -1,0 +1,451 @@
+services:
+  nginx:
+    image: nginx
+    ports:
+      - '127.0.0.1:8443:443'
+      - '[::1]:8443:443'
+    env_file:
+      - .env
+    volumes:
+      - ./backend/wazo-docker/etc/nginx-auth-shared.conf:/etc/nginx/wazo-auth-shared.conf:ro
+      - ./backend/wazo-docker/etc/nginx-calld-shared.conf:/etc/nginx/wazo-calld-shared.conf:ro
+      - ./backend/wazo-docker/etc/nginx-confd-shared.conf:/etc/nginx/wazo-confd-shared.conf:ro
+      - ./backend/wazo-docker/etc/nginx-no-auth-shared.conf:/etc/nginx/wazo-no-auth-shared.conf:ro
+      - ./backend/wazo-docker/etc/nginx.conf:/etc/nginx/conf.d/config.conf:ro
+      - ./backend/wazo-docker/certs:/certs:ro
+    depends_on:
+      - agentd
+      - amid
+      - asterisk
+      - auth
+      - call-logd
+      - calld
+      - chatd
+      - confd
+      - dird
+      - phoned
+      - provd
+      - ui
+      - webhookd
+      - websocketd
+
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: wazo
+      POSTGRES_USER: asterisk
+      POSTGRES_PASSWORD: changeme
+    env_file:
+      - .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/wazo-docker/init-db:/docker-entrypoint-initdb.d
+    expose:
+      - "5432"
+
+  rabbitmq:
+    image: rabbitmq
+    env_file:
+      - .env
+    expose:
+      - "5672"
+    volumes:
+      - tmp-rabbitmq:/var/lib/rabbitmq:rw
+
+  auth:
+    image: wazoplatform/wazo-auth
+    env_file:
+      - .env
+    expose:
+      - 9497
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-auth.yml:/etc/wazo-auth/conf.d/config.yml:ro
+      - type: bind
+        source: ${LOCAL_GIT_REPOS:-./backend/wazo-docker}/wazo-auth-keys/etc/wazo-auth/conf.d/50-wazo-default.yml
+        target: /etc/wazo-auth/conf.d/50-wazo-default.yml
+        read_only: true
+
+  confd:
+    image: wazoplatform/wazo-confd:manage-db
+    build:
+      context: .
+      dockerfile: backend/wazo-docker/Dockerfile-confd
+    env_file:
+      - .env
+    expose:
+      - 9486
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-confd.yml:/etc/wazo-confd/conf.d/config.yml:ro
+      - ./backend/wazo-docker/etc/xivo-dao.yml:/etc/xivo-dao/conf.d/config.yml:ro
+      - ./backend/wazo-docker/bin/init-confd:/bin/wazo-confd/init:ro
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+      - asterisk-autoprov:/etc/asterisk/pjsip.d:rw
+      - asterisk-doc:/var/lib/wazo-confd/asterisk-doc:ro
+      - ./backend/wazo-docker/init-db:/docker-entrypoint-initdb.d:ro
+    entrypoint: [ "/bin/wazo-confd/init" ]
+    command: [ "wazo-confd" ]
+
+  provd:
+    image: wazoplatform/wazo-provd:confgend
+    build:
+      context: ./backend/wazo-docker
+      dockerfile: Dockerfile-provd
+    env_file:
+      - .env
+    expose:
+      - 8666
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-confgend-client.conf:/etc/wazo-confgend-client/config.conf:ro
+      - ./backend/wazo-docker/etc/wazo-provd.yml:/etc/wazo-provd/conf.d/config.yml:ro
+      - ./backend/wazo-docker/bin/init-provd:/bin/wazo-provd/init:ro
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+      - provd-data:/var/lib/wazo-provd:rw
+    entrypoint: [ "/bin/wazo-provd/init" ]
+    command: [ "twistd", "--nodaemon", "--no_save", "--pidfile=", "wazo-provd", "--stderr", "--verbose" ]
+
+  sysconfd:
+    image: wazoplatform/wazo-sysconfd-mock
+    env_file:
+      - .env
+    expose:
+      - 8668
+
+  webhookd:
+    image: wazoplatform/wazo-webhookd:netcat
+    build:
+      context: ./backend/wazo-docker
+      dockerfile: Dockerfile-webhookd
+    env_file:
+      - .env
+    expose:
+      - 9300
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-webhookd.yml:/etc/wazo-webhookd/conf.d/config.yml:ro
+      - ./backend/wazo-docker/bin/init-webhookd:/bin/wazo-webhookd/init:ro
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: [ "/bin/wazo-webhookd/init" ]
+    command: [ "wazo-webhookd" ]
+
+  asterisk:
+    image: wazoplatform/asterisk:sounds
+    build:
+      context: .
+      dockerfile: backend/wazo-docker/Dockerfile-asterisk
+    hostname: asterisk.wazo-docker
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+    expose:
+      - "5038"
+      - "5039"
+      - "8080"
+    ports:
+      - '5060:5060/udp'
+      - '19980-20029:19980-20029/udp'
+    volumes:
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ./backend/wazo-docker/etc/wazo-confgend-client.conf:/etc/wazo-confgend-client/config.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-http.conf:/etc/asterisk/http.d/02-docker.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-extensions.conf:/etc/asterisk/extensions.d/02-docker.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-ari.conf:/etc/asterisk/ari.d/03-ari-handler.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-odbc.ini:/etc/odbc.ini:ro
+      - ./backend/wazo-docker/etc/asterisk-res_odbc.conf:/etc/asterisk/res_odbc.d/02-docker.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-manager.conf:/etc/asterisk/manager.d/999-docker.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-queues.conf:/etc/asterisk/queues.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-agents.conf:/etc/asterisk/agents.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-redirect.conf:/etc/asterisk/redirect.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-busy-handler.conf:/etc/asterisk/busy-handler.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-indications.conf:/etc/asterisk/indications.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-musiconhold.conf:/etc/asterisk/musiconhold.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-say.conf:/etc/asterisk/say.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-queue-russian.conf:/etc/asterisk/queue-russian.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-queue-messages.conf:/etc/asterisk/queue-messages.conf:ro
+      - ./backend/wazo-docker/etc/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./backend/wazo-docker/etc/pjsip_redirect.conf:/etc/asterisk/pjsip.d/redirect.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-rtp.conf:/etc/asterisk/rtp.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-cdr.conf:/etc/asterisk/cdr.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-amqp.conf:/etc/asterisk/res_amqp.d/01-amqp.conf:ro
+      - ./backend/wazo-docker/etc/asterisk-amqp-override.conf:/etc/asterisk/amqp.d/00-override.conf:ro
+      - ./backend/wazo-docker/bin/init-asterisk:/bin/asterisk/init:ro
+      - ./backend/wazo-docker/etc/asterisk-ari.conf:/etc/asterisk/ari.conf:ro
+      - asterisk-autoprov:/etc/asterisk/pjsip.d:rw
+      - asterisk-doc:/usr/share/asterisk/documentation:rw
+      - asterisk-voicemail:/var/spool/asterisk/voicemail:rw
+      - asterisk-sounds:/var/lib/asterisk/sounds:rw
+      - type: bind
+        source: ${LOCAL_GIT_REPOS}/xivo-config/etc/xivo/asterisk
+        target: /etc/xivo/asterisk
+        read_only: true
+      - type: bind
+        source: ${LOCAL_GIT_REPOS}/xivo-config/etc/xivo/asterisk
+        target: /usr/share/xivo-config/etc/xivo/asterisk
+        read_only: true
+    entrypoint: [ "/bin/asterisk/init" ]
+    command: [ "asterisk", "-fTvvv" ]
+
+  confgend:
+    image: wazoplatform/wazo-confgend
+    env_file:
+      - .env
+    expose:
+      - 8669
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-confgend.yml:/etc/wazo-confgend/conf.d/config.yml:ro
+
+  agid:
+    image: wazoplatform/wazo-agid
+    env_file:
+      - .env
+    expose:
+      - 4573
+    volumes:
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ./backend/wazo-docker/bin/init-agid:/bin/wazo-agid/init:ro
+      - ./backend/wazo-docker/etc/wazo-agid.yml:/etc/wazo-agid/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+      # xivo-config has too much dependencies to be installed in the container
+      - type: bind
+        source: ${LOCAL_GIT_REPOS}/xivo-config/etc/xivo
+        target: /etc/xivo
+        read_only: true
+    entrypoint: ["/bin/wazo-agid/init"]
+    command: ["wazo-agid"]
+
+  dird:
+    image: wazoplatform/wazo-dird:netcat
+    build:
+      context: ./backend/wazo-docker
+      dockerfile: Dockerfile-dird
+    env_file:
+      - .env
+    expose:
+      - 9489
+    volumes:
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ./backend/wazo-docker/bin/init-dird:/bin/wazo-dird/init:ro
+      - ./backend/wazo-docker/etc/wazo-dird.yml:/etc/wazo-dird/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-dird/init"]
+    command: ["wazo-dird"]
+
+  amid:
+    image: wazoplatform/wazo-amid
+    env_file:
+      - .env
+    expose:
+      - 9491
+    volumes:
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ./backend/wazo-docker/bin/init-amid:/bin/wazo-amid/init:ro
+      - ./backend/wazo-docker/etc/wazo-amid.yml:/etc/wazo-amid/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: ["/bin/wazo-amid/init"]
+    command: ["wazo-amid"]
+
+  call-logd:
+    image: wazoplatform/wazo-call-logd
+    env_file:
+      - .env
+    expose:
+      - 9298
+    volumes:
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ./backend/wazo-docker/bin/init-call-logd:/bin/wazo-call-logd/init:ro
+      - ./backend/wazo-docker/etc/wazo-call-logd.yml:/etc/wazo-call-logd/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: [ "/bin/wazo-call-logd/init" ]
+    command: [ "wazo-call-logd", "--db-upgrade-on-startup" ]
+
+  chatd:
+    image: wazoplatform/wazo-chatd:netcat
+    build:
+      context: ./backend/wazo-docker
+      dockerfile: Dockerfile-chatd
+    env_file:
+      - .env
+    expose:
+      - 9304
+    volumes:
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ./backend/wazo-docker/bin/init-chatd:/bin/wazo-chatd/init:ro
+      - ./backend/wazo-docker/etc/wazo-chatd.yml:/etc/wazo-chatd/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: [ "/bin/wazo-chatd/init" ]
+    command: [ "wazo-chatd" ]
+
+  phoned:
+    image: wazoplatform/wazo-phoned
+    env_file:
+      - .env
+    expose:
+      - 9304
+    volumes:
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - ./backend/wazo-docker/bin/init-phoned:/bin/wazo-phoned/init:ro
+      - ./backend/wazo-docker/etc/wazo-phoned.yml:/etc/wazo-phoned/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: [ "/bin/wazo-phoned/init" ]
+    command: [ "wazo-phoned" ]
+
+  websocketd:
+    image: wazoplatform/wazo-websocketd:netcat
+    build:
+      context: ./backend/wazo-docker
+      dockerfile: Dockerfile-websocketd
+    env_file:
+      - .env
+    expose:
+      - 9502
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-websocketd.yml:/etc/wazo-websocketd/conf.d/config.yml:ro
+      - ./backend/wazo-docker/bin/init-websocketd:/bin/wazo-websocketd/init:ro
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: [ "/bin/wazo-websocketd/init" ]
+    command: [ "wazo-websocketd" ]
+
+  calld:
+    image: wazoplatform/wazo-calld
+    env_file:
+      - .env
+    expose:
+      - 9491
+    volumes:
+      - asterisk-voicemail:/var/spool/asterisk/voicemail:rw
+      - ./backend/wazo-docker/etc/wazo-calld.yml:/etc/wazo-calld/conf.d/config.yml:ro
+      - ./backend/wazo-docker/bin/init-calld:/bin/wazo-calld/init:ro
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: [ "/bin/wazo-calld/init" ]
+    command: [ "wazo-calld" ]
+
+  agentd:
+    image: wazoplatform/wazo-agentd
+    env_file:
+      - .env
+    expose:
+      - 9493
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-agentd.yml:/etc/wazo-agentd/conf.d/config.yml:ro
+      - ./backend/wazo-docker/bin/init-agentd:/bin/wazo-agentd/init:ro
+      - ./backend/wazo-docker/bin/init-helpers:/var/lib/wazo/helpers:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:ro
+    entrypoint: [ "/bin/wazo-agentd/init" ]
+    command: [ "wazo-agentd" ]
+
+  ui:
+    image: wazoplatform/wazo-ui
+    env_file:
+      - .env
+    expose:
+      - 9296
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-ui.yml:/etc/wazo-ui/conf.d/config.yml:ro
+
+  wazo-ai-bot:
+    build:
+      context: .
+      dockerfile:  backend/wazo-docker/Dockerfile-ai-bot
+    container_name: wazo-ai-bot
+    env_file:
+      - .env
+    environment:
+      - WAZO_TENANT_UUID=701e1f61-8c23-4e62-b564-7a049adf0aef
+      - ARI_HOST=asterisk
+      - ARI_PORT=5039
+      - ARI_USER=ariuser
+      - ARI_PASSWORD=changeme
+      - ARI_APP_NAME=voice-bot
+    expose:
+      - "20001-20050/udp"
+    volumes:
+      - ./backend/wazo-docker/etc/wazo-ai-bot.yml:/etc/wazo-ai-bot/conf.d/config.yml:ro
+      - ./backend/wazo-docker/bin/init_ai_bot_config:/bin/wazo-ai-bot/init:ro
+      - asterisk-sounds:/var/lib/asterisk/sounds:rw
+    depends_on:
+      - confd
+      - calld
+      - asterisk
+      - speech_to_text
+      - bootstrap
+    restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 10
+    networks:
+      - default
+      - wazo_net
+
+  speech_to_text:
+    build:
+      context: ./backend
+      dockerfile: wazo-docker/speech_to_text/Dockerfile
+    image: sip-service-poc/speech_to_text
+    container_name: speech_to_text
+    env_file:
+      - .env
+    environment:
+      - APP_TOKEN=changeme
+      - APP_MODE=DEV
+      - APP_CONTAINERIZED=true
+    expose:
+      - "8000"
+    ports:
+      - '127.0.0.1:8000:8000'
+    restart: unless-stopped
+    networks:
+      - wazo_net
+
+  bootstrap:
+    image: wazoplatform/uc-bootstrap
+    build:
+      context: ./backend/wazo-docker
+      dockerfile: Dockerfile-bootstrap
+    env_file:
+      - .env
+    depends_on:
+      - auth
+      - confd
+      - provd
+      - sysconfd
+      - dird
+    volumes:
+      - ./backend/wazo-docker/bin/init-bootstrap:/bin/platform-bootstrap/init:ro
+      - ./backend/wazo-docker/etc/wazo-auth-cli.yml:/etc/wazo-auth-cli/conf.d/config.yml:ro
+      - wazo-auth-keys:/var/lib/wazo-auth-keys:rw
+      - type: bind
+        source: ${LOCAL_GIT_REPOS:-./backend/wazo-docker}/wazo-auth-keys/etc/wazo-auth-keys/config.yml
+        target: /etc/wazo-auth-keys/config.yml
+        read_only: true
+    entrypoint: ["/bin/bash", "/bin/platform-bootstrap/init"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: sip-service-poc/frontend
+    container_name: hbf_hotels_frontend
+    ports:
+      - "80:8000"
+    restart: unless-stopped
+    networks:
+      - default
+
+volumes:
+  pgdata:
+  provd-data:
+  wazo-auth-keys:
+  asterisk-autoprov:
+  asterisk-doc:
+  asterisk-voicemail:
+  tmp-rabbitmq:
+  asterisk-sounds:
+
+networks:
+  wazo_net:
+    driver: bridge

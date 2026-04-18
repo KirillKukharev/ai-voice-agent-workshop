@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+echo "🤖 Initializing AI Bot Configuration for Wazo Platform..."
+
+# Wait for confd to be ready
+echo "⏳ Waiting for confd service to be ready..."
+sleep 30
+
+echo "✅ AI Bot configuration initialization completed!"
+
+# Start AI Bot service
+echo "🚀 Starting AI Bot service..."
+cd /usr/local/wazo-ai-bot
+python3 /bin/init_ai_bot_config/init/ai_bot_main.py
